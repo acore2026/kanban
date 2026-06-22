@@ -19,16 +19,12 @@ def list_repos(owner: str, limit: int) -> list[RepoInfo]:
     )
     repos = []
     for item in json.loads(output):
-        if item.get("isFork") or item.get("isArchived"):
-            continue
         raw_topics = item.get("repositoryTopics") or []
         topics = [
             topic["name"]
             for topic in raw_topics
             if isinstance(topic, dict) and "name" in topic
         ]
-        if not topics:
-            continue
         repos.append(
             RepoInfo(
                 name_with_owner=item["nameWithOwner"],
@@ -37,4 +33,3 @@ def list_repos(owner: str, limit: int) -> list[RepoInfo]:
             )
         )
     return repos
-

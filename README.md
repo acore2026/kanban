@@ -2,14 +2,22 @@
 
 Count source lines across GitHub repositories and display the results in a local visual dashboard.
 
-The tool groups repositories by GitHub topics:
+The tool groups repositories by a local `repos.yaml` file:
 
 - `arch`
 - `acn`
 - `up`
 - `compute`
 
-Repositories without any topic are ignored. Forked and archived repositories are also skipped.
+Repositories missing from `repos.yaml`, or mapped to `unknown`/`NA`/blank, are ignored.
+
+Example:
+
+```yaml
+acore2026/acn_gw: acn
+acore2026/arc-ui: arch
+acore2026/tp: unknown
+```
 
 ## Requirements
 
@@ -60,6 +68,12 @@ Increase parallel repo processing:
 uv run main.py acore2026 --workers 8 --port 9004
 ```
 
+Use a different mapping file:
+
+```bash
+uv run main.py acore2026 --repo-map ./my-repos.yaml --port 9004
+```
+
 Run as a Python module:
 
 ```bash
@@ -69,6 +83,6 @@ uv run python -m github_line_counter acore2026 --port 9004
 ## Notes
 
 - The first startup can take a while because the tool builds a complete snapshot before serving the page.
-- Source lines are counted from tracked files after shallow-cloning each repository.
+- Source lines are counted from GitHub repository tarballs.
 - Minified JavaScript/CSS, common build folders, virtual environments, and dependency folders are ignored.
-- Repositories with topics outside `arch`, `acn`, `up`, and `compute` are listed only if they also have exactly one of those category topics.
+- GitHub topics are no longer used for categorization.

@@ -1,22 +1,14 @@
-import os
-import shutil
-import tempfile
+import io
+import tarfile
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .config import CATEGORIES, SKIP_DIR_NAMES, SKIP_SUFFIXES, SOURCE_EXTENSIONS, SOURCE_FILENAMES
 from .github import list_repos
 from .models import RepoCount, RepoInfo
+from .repo_map import load_repo_categories
 from .shell import run_cmd
-
-
-def detect_category(topics: list[str]) -> tuple[str | None, str | None]:
-    matches = [category for category in CATEGORIES if category in topics]
-    if not matches:
-        return None, "missing category topic"
-    if len(matches) > 1:
-        return None, f"multiple category topics: {', '.join(matches)}"
-    return matches[0], None
 
 
 def should_count_file(path: str) -> bool:
@@ -36,35 +28,50 @@ def is_probably_binary(path: str) -> bool:
         return b"\x00" in handle.read(8192)
 
 
-def count_repo_lines(repo: RepoInfo, work_root: str) -> RepoCount:
-    category, category_error = detect_category(repo.topics)
-    if category_error:
-        return RepoCount(repo=repo, category=None, lines=0, files=0, skipped_reason=category_error)
+def get_github_token() -> str:
+    return run_cmd(["gh", "auth", "token"]).strip()
 
-    clone_dir = os.path.join(work_root, repo.name_with_owner.replace("/", "__"))
-    try:
-        run_cmd(["gh", "repo", "clone", repo.name_with_owner, clone_dir, "--", "--depth=1"])
-        tracked = run_cmd(["git", "ls-files", "-z"], cwd=clone_dir)
-        total_lines = 0
-        counted_files = 0
-        for rel_path in [entry for entry in tracked.split("\x00") if entry]:
-            if not should_count_file(rel_path):
-                continue
-            full_path = os.path.join(clone_dir, rel_path)
-            if is_probably_binary(full_path):
-                continue
-            try:
-                with open(full_path, "r", encoding="utf-8", errors="ignore") as handle:
-                    total_lines += sum(1 for _ in handle)
+
+def count_repo_lines(repo: RepoInfo, work_root: str, category: str, token: str | None = None) -> RepoCount:
+    del work_root
+    owner, name = repo.name_with_owner.split("/", 1)
+    request = urllib.request.Request(
+        f"https://api.github.com/repos/{owner}/{name}/tarball",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token or get_github_token()}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    total_lines = 0
+    counted_files = 0
+    with urllib.request.urlopen(request, timeout=60) as response:
+        with tarfile.open(fileobj=response, mode="r|gz") as archive:
+            for member in archive:
+                if not member.isfile():
+                    continue
+                rel_path = _strip_archive_root(member.name)
+                if not rel_path or not should_count_file(rel_path):
+                    continue
+                extracted = archive.extractfile(member)
+                if extracted is None:
+                    continue
+                data = extracted.read()
+                if b"\x00" in data[:8192]:
+                    continue
+                total_lines += len(io.TextIOWrapper(io.BytesIO(data), encoding="utf-8", errors="ignore").readlines())
                 counted_files += 1
-            except OSError:
-                continue
-        return RepoCount(repo=repo, category=category, lines=total_lines, files=counted_files)
-    finally:
-        shutil.rmtree(clone_dir, ignore_errors=True)
+    return RepoCount(repo=repo, category=category, lines=total_lines, files=counted_files)
 
 
-def collect_payload(owner: str, limit: int, workers: int) -> dict:
+def _strip_archive_root(path: str) -> str:
+    parts = PurePosixPath(path).parts
+    if len(parts) <= 1:
+        return ""
+    return "/".join(parts[1:])
+
+
+def collect_payload(owner: str, limit: int, workers: int, repo_map_path: str = "repos.yaml") -> dict:
     print(
         f"[count_github_lines] listing repos for {owner} (limit={limit}, workers={workers})",
         flush=True,
@@ -77,28 +84,33 @@ def collect_payload(owner: str, limit: int, workers: int) -> dict:
     if not repos:
         raise RuntimeError("no repositories found")
 
-    print(f"[count_github_lines] counting {len(repos)} repos", flush=True)
-    with tempfile.TemporaryDirectory(prefix="gh-line-count-") as tempdir:
-        results: list[RepoCount] = []
-        with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
-            future_map = {
-                executor.submit(count_repo_lines, repo, tempdir): repo.name_with_owner
-                for repo in repos
-            }
-            for future in as_completed(future_map):
-                repo_name = future_map[future]
-                try:
-                    results.append(future.result())
-                except Exception as exc:
-                    results.append(
-                        RepoCount(
-                            repo=RepoInfo(name_with_owner=repo_name, url="", topics=[]),
-                            category=None,
-                            lines=0,
-                            files=0,
-                            skipped_reason=str(exc),
-                        )
+    repo_categories = load_repo_categories(repo_map_path)
+    categorized_repos = [repo for repo in repos if repo.name_with_owner in repo_categories]
+    if not categorized_repos:
+        raise RuntimeError(f"no repositories matched categories in {repo_map_path}")
+
+    print(f"[count_github_lines] counting {len(categorized_repos)} repos", flush=True)
+    token = get_github_token()
+    results: list[RepoCount] = []
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
+        future_map = {
+            executor.submit(count_repo_lines, repo, "", repo_categories[repo.name_with_owner], token): repo.name_with_owner
+            for repo in categorized_repos
+        }
+        for future in as_completed(future_map):
+            repo_name = future_map[future]
+            try:
+                results.append(future.result())
+            except Exception as exc:
+                results.append(
+                    RepoCount(
+                        repo=RepoInfo(name_with_owner=repo_name, url="", topics=[]),
+                        category=None,
+                        lines=0,
+                        files=0,
+                        skipped_reason=str(exc),
                     )
+                )
 
     results.sort(key=lambda item: item.repo.name_with_owner.lower())
     totals = {category: 0 for category in CATEGORIES}
@@ -132,4 +144,3 @@ def collect_payload(owner: str, limit: int, workers: int) -> dict:
         ],
         "skipped": skipped,
     }
-

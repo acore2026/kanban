@@ -43,7 +43,7 @@ def render_html(payload: dict, error: str | None = None) -> str:
       <div class="headline">
         <div class="eyebrow">GitHub Code Inventory</div>
         <h1>{owner}</h1>
-        <div class="sub">Tracked source lines grouped by your GitHub repo topics. The view skips forks, archived repos, and any repository without a usable category topic.</div>
+        <div class="sub">Tracked source lines grouped by your local repo map. Repositories with blank or unknown categories are ignored.</div>
       </div>
       <div class="summary">
         <section class="mini-stat">
@@ -101,13 +101,13 @@ def _send_response(handler: BaseHTTPRequestHandler, body: bytes, content_type: s
     handler.wfile.write(body)
 
 
-def serve_dashboard(owner: str, limit: int, workers: int, port: int) -> int:
+def serve_dashboard(owner: str, limit: int, workers: int, port: int, repo_map_path: str = "repos.yaml") -> int:
     state = {"payload": None, "error": None}
 
     def refresh() -> None:
         print("[count_github_lines] building dashboard snapshot", flush=True)
         try:
-            state["payload"] = collect_payload(owner, limit, workers)
+            state["payload"] = collect_payload(owner, limit, workers, repo_map_path)
             state["error"] = None
         except Exception as exc:
             state["payload"] = state["payload"] or {
@@ -222,4 +222,3 @@ def _css() -> str:
     .error { margin-bottom: 18px; padding: 14px 16px; border-radius: 16px; background: rgba(143,45,35,0.08); color: var(--bad); border: 1px solid rgba(143,45,35,0.2); }
     @media (max-width: 900px) { .hero, .category-grid { grid-template-columns: 1fr; } }
     """
-
