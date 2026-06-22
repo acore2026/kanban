@@ -72,19 +72,22 @@ def _strip_archive_root(path: str) -> str:
 
 
 def collect_payload(owner: str, limit: int, workers: int, repo_map_path: str = "repos.yaml") -> dict:
+    repo_categories = load_repo_categories(repo_map_path)
+    owners = sorted({owner, *(repo_name.split("/", 1)[0] for repo_name in repo_categories)})
     print(
-        f"[count_github_lines] listing repos for {owner} (limit={limit}, workers={workers})",
+        f"[count_github_lines] listing repos for {', '.join(owners)} (limit={limit}, workers={workers})",
         flush=True,
     )
     try:
-        repos = list_repos(owner, limit)
+        repos = []
+        for repo_owner in owners:
+            repos.extend(list_repos(repo_owner, limit))
     except Exception as exc:
         raise RuntimeError(f"failed to list repositories: {exc}") from exc
 
     if not repos:
         raise RuntimeError("no repositories found")
 
-    repo_categories = load_repo_categories(repo_map_path)
     categorized_repos = [repo for repo in repos if repo.name_with_owner in repo_categories]
     if not categorized_repos:
         raise RuntimeError(f"no repositories matched categories in {repo_map_path}")

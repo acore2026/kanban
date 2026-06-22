@@ -19,7 +19,7 @@ def render_html(payload: dict, error: str | None = None) -> str:
         <section class="card category-{category}">
           <div class="eyebrow">{category.upper()}</div>
           <div class="metric">{totals.get(category, {}).get('lines', 0):,}</div>
-          <div class="meta">{totals.get(category, {}).get('files', 0):,} files</div>
+          <div class="meta">{totals.get(category, {}).get('files', 0):,} 个文件</div>
         </section>
         """
         for category in CATEGORIES
@@ -29,11 +29,11 @@ def render_html(payload: dict, error: str | None = None) -> str:
     error_html = f'<div class="error">{escape(error)}</div>' if error else ""
 
     return f"""<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GitHub Code Lines</title>
+  <title>GitHub 代码行统计</title>
   <style>{_css()}</style>
 </head>
 <body>
@@ -41,17 +41,17 @@ def render_html(payload: dict, error: str | None = None) -> str:
     {error_html}
     <section class="hero">
       <div class="headline">
-        <div class="eyebrow">GitHub Code Inventory</div>
+        <div class="eyebrow">GitHub 代码统计</div>
         <h1>{owner}</h1>
-        <div class="sub">Tracked source lines grouped by your local repo map. Repositories with blank or unknown categories are ignored.</div>
+        <div class="sub">按本地仓库映射文件分组统计代码行。标记为 unknown 或未分类的仓库不会计入统计。</div>
       </div>
       <div class="summary">
         <section class="mini-stat">
-          <div class="eyebrow">Total Lines</div>
+          <div class="eyebrow">总代码行</div>
           <div class="value">{total_lines:,}</div>
         </section>
         <section class="mini-stat">
-          <div class="eyebrow">Total Files</div>
+          <div class="eyebrow">总文件数</div>
           <div class="value">{total_files:,}</div>
         </section>
       </div>
@@ -60,11 +60,11 @@ def render_html(payload: dict, error: str | None = None) -> str:
     <section class="panel">
       <div class="toolbar">
         <div>
-          <h2>Repository Grid</h2>
-          <div class="sub">Each card shows the repo category, counted files, and counted lines.</div>
+          <h2>仓库列表</h2>
+          <div class="sub">每张卡片展示仓库类别、文件数和代码行数。</div>
         </div>
         <form method="post" action="/refresh">
-          <button class="button" type="submit">Refresh From GitHub</button>
+          <button class="button" type="submit">从 GitHub 刷新</button>
         </form>
       </div>
       <div class="repo-grid">{repo_cards}</div>
@@ -85,7 +85,7 @@ def _render_repo_card(repo: dict) -> str:
         <a href="https://github.com/{repo_name}" target="_blank" rel="noreferrer">{repo_name}</a>
         <div class="repo-category">{category}</div>
       </div>
-      <div class="repo-metrics">{repo.get('lines', 0):,} lines / {repo.get('files', 0):,} files</div>
+      <div class="repo-metrics">{repo.get('lines', 0):,} 行 / {repo.get('files', 0):,} 个文件</div>
       <div class="topics">{topics}</div>
     </article>
     """
@@ -161,11 +161,11 @@ def serve_dashboard(owner: str, limit: int, workers: int, port: int, repo_map_pa
 def _css() -> str:
     return """
     :root {
-      --bg: #f4efe6;
-      --panel: rgba(255,255,255,0.74);
-      --ink: #1d1b16;
-      --muted: #6c6458;
-      --line: rgba(29,27,22,0.12);
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #64717f;
+      --line: #dbe1e8;
       --arch: #c95b35;
       --acn: #1f6c5c;
       --up: #2d5e9d;
@@ -175,50 +175,46 @@ def _css() -> str:
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
+      font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       color: var(--ink);
-      background:
-        radial-gradient(circle at top left, rgba(201,91,53,0.20), transparent 28%),
-        radial-gradient(circle at top right, rgba(31,108,92,0.18), transparent 24%),
-        linear-gradient(180deg, #f8f2e8 0%, var(--bg) 100%);
+      background: var(--bg);
     }
-    .wrap { max-width: 1280px; margin: 0 auto; padding: 32px 20px 48px; }
-    .hero { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; align-items: end; margin-bottom: 22px; }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 40px; }
+    .hero { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; align-items: end; margin-bottom: 16px; }
     .headline, .mini-stat, .card, .panel, .repo-card {
       border: 1px solid var(--line);
-      border-radius: 22px;
+      border-radius: 8px;
       background: var(--panel);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 20px 50px rgba(60,40,10,0.08);
+      box-shadow: 0 1px 2px rgba(16,24,40,0.04);
     }
-    .headline { padding: 28px; }
-    h1, h2 { margin: 0 0 12px; font-weight: 600; letter-spacing: -0.03em; }
-    h1 { font-size: clamp(2rem, 4vw, 4.3rem); }
-    h2 { font-size: 1.3rem; }
-    .sub, .repo-metrics { color: var(--muted); font-size: 1rem; line-height: 1.5; }
-    .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .mini-stat, .card, .panel, .repo-card { padding: 20px; }
-    .mini-stat .value, .metric { font-size: clamp(1.8rem, 3vw, 3rem); font-weight: 700; line-height: 1; }
-    .eyebrow, .meta, .repo-category { text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.75rem; color: var(--muted); }
-    .category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-    .card { min-height: 160px; position: relative; overflow: hidden; }
-    .card::after { content: ""; position: absolute; inset: auto -24px -32px auto; width: 110px; height: 110px; border-radius: 999px; opacity: 0.12; }
+    .headline { padding: 22px; }
+    h1, h2 { margin: 0 0 10px; font-weight: 650; letter-spacing: 0; }
+    h1 { font-size: 2rem; line-height: 1.15; }
+    h2 { font-size: 1.05rem; }
+    .sub, .repo-metrics { color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+    .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .mini-stat, .card, .panel, .repo-card { padding: 16px; }
+    .mini-stat .value, .metric { font-size: 2rem; font-weight: 700; line-height: 1.05; }
+    .eyebrow, .meta, .repo-category { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.7rem; color: var(--muted); }
+    .category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+    .card { min-height: 116px; position: relative; overflow: hidden; }
+    .card::after { content: ""; position: absolute; inset: auto 0 0 0; height: 3px; opacity: 1; }
     .category-arch::after { background: var(--arch); }
     .category-acn::after { background: var(--acn); }
     .category-up::after { background: var(--up); }
     .category-compute::after { background: var(--compute); }
-    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
-    .button { appearance: none; border: 0; border-radius: 999px; background: var(--ink); color: white; padding: 12px 18px; font: inherit; cursor: pointer; }
-    .repo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
-    .repo-card { min-height: 170px; display: flex; flex-direction: column; gap: 12px; border-left-width: 8px; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+    .button { appearance: none; border: 0; border-radius: 6px; background: var(--ink); color: white; padding: 10px 14px; font: inherit; font-size: 0.9rem; cursor: pointer; }
+    .repo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+    .repo-card { min-height: 132px; display: flex; flex-direction: column; gap: 10px; border-left-width: 4px; }
     .repo-card.arch { border-left-color: var(--arch); }
     .repo-card.acn { border-left-color: var(--acn); }
     .repo-card.up { border-left-color: var(--up); }
     .repo-card.compute { border-left-color: var(--compute); }
-    .repo-card a { color: var(--ink); text-decoration: none; font-size: 1.1rem; font-weight: 700; }
+    .repo-card a { color: var(--ink); text-decoration: none; font-size: 0.98rem; font-weight: 650; overflow-wrap: anywhere; }
     .repo-card a:hover { text-decoration: underline; }
-    .topics { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
-    .topic { border-radius: 999px; padding: 5px 10px; background: rgba(29,27,22,0.06); font-size: 0.82rem; }
-    .error { margin-bottom: 18px; padding: 14px 16px; border-radius: 16px; background: rgba(143,45,35,0.08); color: var(--bad); border: 1px solid rgba(143,45,35,0.2); }
+    .topics { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+    .topic { border-radius: 4px; padding: 4px 8px; background: #eef2f6; color: var(--muted); font-size: 0.78rem; }
+    .error { margin-bottom: 16px; padding: 12px 14px; border-radius: 8px; background: rgba(143,45,35,0.08); color: var(--bad); border: 1px solid rgba(143,45,35,0.2); }
     @media (max-width: 900px) { .hero, .category-grid { grid-template-columns: 1fr; } }
     """

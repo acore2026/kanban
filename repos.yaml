@@ -79,3 +79,25 @@ acore2026/visual-recog: compute
 acore2026/visual-recog-viewer: compute
 acore2026/webconsole: unknown
 acore2026/yolo: compute
+
+6g-core/.github: unknown
+6g-core/RAYNEO: compute
+6g-core/RAYNEO-ctrl: compute
+6g-core/apriltag: compute
+6g-core/arm: compute
+6g-core/cloud_proxy: compute
+6g-core/compute-webui: compute
+6g-core/core_network: compute
+6g-core/docker-simple: compute
+6g-core/dog: compute
+6g-core/dog-ctrl: compute
+6g-core/gesture: compute
+6g-core/llm_wiki_computing: compute
+6g-core/marm_demo: compute
+6g-core/phone_proxy: compute
+6g-core/sandbox: compute
+6g-core/semantic-route-qwen: compute
+6g-core/smf: compute
+6g-core/web-demo: compute
+6g-core/whisper: compute
+6g-core/yolo: compute
